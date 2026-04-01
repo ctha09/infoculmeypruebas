@@ -1,118 +1,115 @@
-// --- CONFIGURACIÓN DE ESTADO INICIAL ---
-let isAdmin = false;
 let currentBalance = 0;
+let financeChart = null;
+let deferredPrompt;
 
 const datosInicialesTesoreria = [
     { desc: "Fondo 2025", amount: 460550 },
-    { desc: "Venta de pizzas", amount: 75000 }
+    { desc: "Venta de pizzas", amount: 75000 },
+    { desc: "Venta de käsestangen", amount: 29500 },
+    { desc: "Gastos Web", amount: -40000 },
+    { desc: "Compra de pilas para nuevas calculadoras", amount: -48452 }
 ];
 
+// SECCIÓN PRENSA: Se eliminó la noticia del 30/03/2026
 const datosInicialesPrensa = [
-    { fecha: "13/02/2026", texto: "Bienvenidos al portal oficial de INFOCULMEY." },
+    { fecha: "17/03/2026", texto: "Venta de käsestangen a las 3:45 pm" },
+    { fecha: "13/02/2026", texto: "Bienvenidos al portal INFOCULMEY." }
 ];
 
-// Función principal al cargar
-window.onload = function() {
+window.onload = () => {
     cargarDatosPermanentes();
     iniciarPantallaDeCarga();
+    detectarIos();
 };
+
+function detectarIos() {
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isIos && !isStandalone) {
+        document.getElementById('ios-install-banner').style.display = 'block';
+    }
+}
 
 function iniciarPantallaDeCarga() {
     const loader = document.getElementById('loader');
     const bar = document.getElementById('progress-bar');
-
-    // Iniciar progreso de la barra (2.8 segundos de duración en CSS)
-    setTimeout(() => {
-        if(bar) bar.style.width = '100%';
-    }, 100);
-
-    // Ocultar pantalla después de 3.2 segundos (un poco después de que la barra llegue al 100%)
-    setTimeout(() => {
-        if(loader) loader.classList.add('loader-hidden');
-    }, 3200);
+    setTimeout(() => { if(bar) bar.style.width = '100%'; }, 100);
+    setTimeout(() => { if(loader) loader.classList.add('loader-hidden'); }, 3200);
 }
 
 function cargarDatosPermanentes() {
     const historyBody = document.getElementById('history-body');
     const newsContainer = document.getElementById('news-container');
-    
     currentBalance = 0;
     if (historyBody) historyBody.innerHTML = "";
     
+    let historialSaldos = [0]; 
+    let etiquetas = ["Inicio"]; 
+
     datosInicialesTesoreria.forEach(item => {
         currentBalance += item.amount;
+        historialSaldos.push(currentBalance);
+        etiquetas.push(item.desc);
         if (historyBody) {
-            const row = `<tr>
-                <td>${item.desc}</td>
-                <td style="color:${item.amount >= 0 ? '#4ade80':'#f87171'}">
-                    ${item.amount >= 0 ? '+' : ''}${item.amount.toLocaleString('es-AR')}
-                </td>
-            </tr>`;
+            const row = `<tr><td>${item.desc}</td><td style="color:${item.amount >= 0 ? '#4ade80':'#f87171'}">${item.amount >= 0 ? '+' : ''}${item.amount.toLocaleString('es-AR')}</td></tr>`;
             historyBody.insertAdjacentHTML('beforeend', row);
         }
     });
-    
-    actualizarDisplayDinero();
 
-    if(datosInicialesPrensa.length > 0 && newsContainer) {
+    actualizarDisplayDinero();
+    inicializarGrafica(etiquetas, historialSaldos);
+
+    if(newsContainer) {
         newsContainer.innerHTML = "";
-        datosInicialesPrensa.forEach(noticia => {
-            const id = Math.random().toString(36).substr(2, 9);
-            const post = `
-                <div id="post-${id}" class="news-item">
-                    <button class="del-news" onclick="deleteNews('${id}')" style="display:none">Eliminar</button>
-                    <small style="color:var(--primary)">${noticia.fecha}</small>
-                    <p style="margin-top:10px; line-height:1.6;">${noticia.texto.replace(/\n/g, '<br>')}</p>
-                </div>`;
+        datosInicialesPrensa.slice().reverse().forEach(noticia => {
+            const post = `<div class="news-item" style="margin-bottom:20px; padding:20px; background:rgba(255,255,255,0.03); border-radius:15px; border-left:4px solid #3b82f6;">
+                <small style="color:#3b82f6; font-weight:bold;">${noticia.fecha}</small>
+                <p style="margin-top:10px; line-height:1.6;">${noticia.texto}</p>
+            </div>`;
             newsContainer.insertAdjacentHTML('beforeend', post);
         });
     }
 }
 
+function inicializarGrafica(etiquetas, datos) {
+    const canvas = document.getElementById('finance-chart');
+    if (!canvas) return;
+    if (financeChart) financeChart.destroy();
+    financeChart = new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: etiquetas,
+            datasets: [{
+                data: datos,
+                fill: true,
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                borderColor: '#3b82f6',
+                tension: 0.4,
+                pointRadius: 4,
+                pointBackgroundColor: '#3b82f6'
+            }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+                x: { grid: { display: false }, ticks: { color: '#64748b' } }
+            }
+        }
+    });
+}
+
 function actualizarDisplayDinero() {
     const display = document.getElementById('money-display');
-    if (display) {
-        display.innerText = `$${currentBalance.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-    }
-}
-
-function toggleAdmin() {
-    if (!isAdmin) {
-        const pass = prompt("Acceso Administrador. Ingrese PIN:");
-        if (pass === "031223") {
-            isAdmin = true;
-            actualizarInterfaz();
-            alert("MODO ADMINISTRADOR ACTIVADO");
-        } else {
-            alert("PIN Incorrecto.");
-        }
-    } else {
-        isAdmin = false;
-        actualizarInterfaz();
-        alert("MODO LECTURA ACTIVADO");
-    }
-}
-
-function actualizarInterfaz() {
-    document.querySelectorAll('.admin-only').forEach(el => {
-        el.style.display = isAdmin ? "block" : "none";
-    });
-    
-    document.querySelectorAll('.del-news').forEach(btn => {
-        btn.style.display = isAdmin ? "block" : "none";
-    });
-
-    const status = document.getElementById('status-mode');
-    if (status) {
-        status.innerText = isAdmin ? "MODO EDICIÓN" : "Modo Lectura";
-        status.style.color = isAdmin ? "#ffc107" : "#64748b";
-    }
+    if (display) display.innerText = `$${currentBalance.toLocaleString('es-AR')}`;
 }
 
 function viewSection(section) {
     document.getElementById('home-screen').style.display = 'none';
     document.getElementById('view-' + section).style.display = 'flex';
-    actualizarInterfaz();
+    window.scrollTo(0,0);
 }
 
 function showHome() {
@@ -121,49 +118,52 @@ function showHome() {
     document.getElementById('view-prensa').style.display = 'none';
 }
 
-function addTransaction() {
-    const desc = document.getElementById('trans-desc').value;
-    const amount = parseFloat(document.getElementById('trans-amount').value);
-    
-    if (desc && !isNaN(amount)) {
-        currentBalance += amount;
-        actualizarDisplayDinero();
-        
-        const row = `<tr>
-            <td>${desc}</td>
-            <td style="color:${amount >= 0 ? '#4ade80':'#f87171'}">
-                ${amount >= 0 ? '+' : ''}${amount.toLocaleString('es-AR')}
-            </td>
-        </tr>`;
-        
-        document.getElementById('history-body').insertAdjacentHTML('afterbegin', row);
-        document.getElementById('trans-desc').value = ""; 
-        document.getElementById('trans-amount').value = "";
-    }
+// LOGICA COMPONENTE IA
+function toggleAI() {
+    document.getElementById('ai-panel').classList.toggle('active');
 }
 
-function addNews() {
-    const text = document.getElementById('news-input').value;
-    if (text.trim() !== "") {
-        const container = document.getElementById('news-container');
-        if(container.querySelector('.empty-news')) container.innerHTML = "";
-        
-        const id = Date.now();
-        const post = `
-            <div id="post-${id}" class="news-item">
-                <button class="del-news" onclick="deleteNews('${id}')" style="display:${isAdmin?'block':'none'}">Eliminar</button>
-                <small style="color:var(--primary)">${new Date().toLocaleDateString()}</small>
-                <p style="margin-top:10px; line-height:1.6;">${text.replace(/\n/g, '<br>')}</p>
-            </div>`;
-            
-        container.insertAdjacentHTML('afterbegin', post);
-        document.getElementById('news-input').value = "";
+function askAI(tipo) {
+    const chatBody = document.getElementById('ai-chat-body');
+    let res = "";
+
+    if (tipo === 'monto') {
+        res = `El monto total de la tesorería es de **$${currentBalance.toLocaleString('es-AR')}**.`;
+    } else if (tipo === 'prensa') {
+        // Ahora toma la noticia del 17/03 como la más reciente
+        const ult = datosInicialesPrensa[0];
+        res = `Última noticia disponible (${ult.fecha}): "${ult.texto}"`;
+    } else if (tipo === 'autor') {
+        res = "Esta web fue programada por Carlos Thomas Acosta para la Promo 2026.";
     }
+
+    chatBody.innerHTML += `<div class="ai-message" style="background:rgba(59,130,246,0.15); align-self:flex-end;">Consultando...</div>`;
+    setTimeout(() => {
+        chatBody.innerHTML += `<div class="ai-message">${res}</div>`;
+        chatBody.scrollTop = chatBody.scrollHeight;
+    }, 500);
 }
 
-function deleteNews(id) {
-    if(confirm("¿Eliminar publicación?")) {
-        const el = document.getElementById(`post-${id}`);
-        if(el) el.remove();
-    }
+// Service Worker & Instalación
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js');
+    });
 }
+
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('install-area').style.display = 'block';
+});
+
+document.getElementById('btn-install-app').addEventListener('click', async () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            document.getElementById('install-area').style.display = 'none';
+        }
+        deferredPrompt = null;
+    }
+});
