@@ -2,16 +2,20 @@ let currentBalance = 0;
 let financeChart = null;
 let deferredPrompt;
 
+// Datos actualizados con pizzetas y kasestanguen
 const datosInicialesTesoreria = [
     { desc: "Fondo 2025", amount: 460550 },
     { desc: "Venta de pizzas", amount: 75000 },
     { desc: "Venta de käsestangen", amount: 29500 },
     { desc: "Gastos Web", amount: -40000 },
-    { desc: "Compra de pilas para nuevas calculadoras", amount: -48452 }
+    { desc: "Compra de pilas para nuevas calculadoras", amount: -48452 },
+    { desc: "Venta de pizzetas", amount: 15000 },
+    { desc: "Venta de kasestanguen", amount: 27000 }
 ];
 
-// SECCIÓN PRENSA: Se eliminó la noticia del 30/03/2026
 const datosInicialesPrensa = [
+    { fecha: "31/03/2026", texto: "Nuevos ingresos por ventas de pizzetas y käsestangen registrados." },
+    { fecha: "30/03/2026", texto: "Actualización de tesorería: Compra de insumos para calculadoras." },
     { fecha: "17/03/2026", texto: "Venta de käsestangen a las 3:45 pm" },
     { fecha: "13/02/2026", texto: "Bienvenidos al portal INFOCULMEY." }
 ];
@@ -19,14 +23,18 @@ const datosInicialesPrensa = [
 window.onload = () => {
     cargarDatosPermanentes();
     iniciarPantallaDeCarga();
-    detectarIos();
+    chequearPlataforma();
 };
 
-function detectarIos() {
+function chequearPlataforma() {
     const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+
     if (isIos && !isStandalone) {
-        document.getElementById('ios-install-banner').style.display = 'block';
+        document.getElementById('install-area').style.display = 'block';
+        document.getElementById('btn-install-app').onclick = () => {
+            document.getElementById('ios-modal').style.display = 'block';
+        };
     }
 }
 
@@ -85,8 +93,7 @@ function inicializarGrafica(etiquetas, datos) {
                 backgroundColor: 'rgba(59, 130, 246, 0.1)',
                 borderColor: '#3b82f6',
                 tension: 0.4,
-                pointRadius: 4,
-                pointBackgroundColor: '#3b82f6'
+                pointRadius: 4
             }]
         },
         options: { 
@@ -118,7 +125,7 @@ function showHome() {
     document.getElementById('view-prensa').style.display = 'none';
 }
 
-// LOGICA COMPONENTE IA
+// LÓGICA IA
 function toggleAI() {
     document.getElementById('ai-panel').classList.toggle('active');
 }
@@ -126,31 +133,18 @@ function toggleAI() {
 function askAI(tipo) {
     const chatBody = document.getElementById('ai-chat-body');
     let res = "";
+    if (tipo === 'monto') res = `El monto total es de **$${currentBalance.toLocaleString('es-AR')}**.`;
+    else if (tipo === 'prensa') res = `Última noticia (${datosInicialesPrensa[0].fecha}): ${datosInicialesPrensa[0].texto}`;
+    else if (tipo === 'autor') res = "Esta web fue programada por Carlos Thomas Acosta para la Promo 2026.";
 
-    if (tipo === 'monto') {
-        res = `El monto total de la tesorería es de **$${currentBalance.toLocaleString('es-AR')}**.`;
-    } else if (tipo === 'prensa') {
-        // Ahora toma la noticia del 17/03 como la más reciente
-        const ult = datosInicialesPrensa[0];
-        res = `Última noticia disponible (${ult.fecha}): "${ult.texto}"`;
-    } else if (tipo === 'autor') {
-        res = "Esta web fue programada por Carlos Thomas Acosta para la Promo 2026.";
-    }
-
-    chatBody.innerHTML += `<div class="ai-message" style="background:rgba(59,130,246,0.15); align-self:flex-end;">Consultando...</div>`;
+    chatBody.innerHTML += `<div class="ai-message" style="background:rgba(59,130,246,0.1); align-self:flex-end;">Consultando...</div>`;
     setTimeout(() => {
         chatBody.innerHTML += `<div class="ai-message">${res}</div>`;
         chatBody.scrollTop = chatBody.scrollHeight;
-    }, 500);
+    }, 600);
 }
 
-// Service Worker & Instalación
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js');
-    });
-}
-
+// Instalación PWA
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
@@ -161,9 +155,22 @@ document.getElementById('btn-install-app').addEventListener('click', async () =>
     if (deferredPrompt) {
         deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-            document.getElementById('install-area').style.display = 'none';
-        }
+        if (outcome === 'accepted') document.getElementById('install-area').style.display = 'none';
         deferredPrompt = null;
     }
 });
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').then(reg => {
+            reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        window.location.reload(); 
+                    }
+                });
+            });
+        });
+    });
+}
